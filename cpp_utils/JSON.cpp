@@ -12,12 +12,13 @@
 #include <stdlib.h>
 #include "JSON.h"
 
+#if 0
 /**
  * @brief Create an empty JSON array.
  * @return An empty JSON array.
  */
 JsonArray JSON::createArray() {
-	return JsonArray(cJSON_CreateArray());
+    return JsonArray(cJSON_CreateArray(), true);
 } // createArray
 
 
@@ -26,7 +27,7 @@ JsonArray JSON::createArray() {
  * @return An empty JSON object.
  */
 JsonObject JSON::createObject() {
-	return JsonObject(cJSON_CreateObject());
+    return JsonObject(cJSON_CreateObject(), true);
 } // createObject
 
 
@@ -36,7 +37,7 @@ JsonObject JSON::createObject() {
  * @return N/A.
  */
 void JSON::deleteArray(JsonArray jsonArray) {
-	cJSON_Delete(jsonArray.m_node);
+    cJSON_Delete(jsonArray.m_node);
 } // deleteArray
 
 
@@ -45,8 +46,9 @@ void JSON::deleteArray(JsonArray jsonArray) {
  * @param [in] jsonObject The object to be deleted.
  */
 void JSON::deleteObject(JsonObject jsonObject) {
-	cJSON_Delete(jsonObject.m_node);
+    cJSON_Delete(jsonObject.m_node);
 } // deleteObject
+
 
 
 /**
@@ -55,7 +57,7 @@ void JSON::deleteObject(JsonObject jsonObject) {
  * @return A JSON array.
  */
 JsonArray JSON::parseArray(std::string text) {
-	return JsonArray(cJSON_Parse(text.c_str()));
+    return JsonArray(cJSON_Parse(text.c_str()), true);
 } // parseArray
 
 
@@ -65,13 +67,30 @@ JsonArray JSON::parseArray(std::string text) {
  * @return a JSON object.
  */
 JsonObject JSON::parseObject(std::string text) {
-	return JsonObject(cJSON_Parse(text.c_str()));
+    return JsonObject(cJSON_Parse(text.c_str()), true);
 } // parseObject
+#endif
 
-
-JsonArray::JsonArray(cJSON* node) {
-	m_node = node;
+void JsonObject::fromString(const std::string &text) {
+    if (m_owner) cJSON_Delete(m_node);
+    m_node = cJSON_Parse(text.c_str());
+    m_owner = true;
 }
+
+void JsonArray::fromString(const std::string &text) {
+    if (m_owner) cJSON_Delete(m_node);
+    m_node = cJSON_Parse(text.c_str());
+    m_owner = true;
+}
+
+JsonArray::JsonArray(cJSON* node, bool owner)
+    : m_node(node)
+    , m_owner(owner) {
+}
+
+JsonArray::JsonArray(JsonObject& obj)
+    : m_node(obj.m_node)
+    , m_owner(false) {}
 
 
 /**
@@ -79,7 +98,7 @@ JsonArray::JsonArray(cJSON* node) {
  * @param [in] value The boolean value to add to the array.
  */
 void JsonArray::addBoolean(bool value) {
-	cJSON_AddItemToArray(m_node, cJSON_CreateBool(value));
+    cJSON_AddItemToArray(m_node, cJSON_CreateBool(value));
 } // addBoolean
 
 
@@ -88,7 +107,7 @@ void JsonArray::addBoolean(bool value) {
  * @param [in] value The double value to add to the array.
  */
 void JsonArray::addDouble(double value) {
-	cJSON_AddItemToArray(m_node, cJSON_CreateNumber(value));
+    cJSON_AddItemToArray(m_node, cJSON_CreateNumber(value));
 } // addDouble
 
 
@@ -97,7 +116,7 @@ void JsonArray::addDouble(double value) {
  * @param [in] value The int value to add to the array.
  */
 void JsonArray::addInt(int value) {
-	cJSON_AddItemToArray(m_node, cJSON_CreateNumber((double)value));
+    cJSON_AddItemToArray(m_node, cJSON_CreateNumber((double)value));
 } // addInt
 
 
@@ -105,8 +124,9 @@ void JsonArray::addInt(int value) {
  * @brief Add an object value to the array.
  * @param [in] value The object value to add to the array.
  */
-void JsonArray::addObject(JsonObject value) {
-	cJSON_AddItemToArray(m_node, value.m_node);
+void JsonArray::addObject(JsonObject& value) {
+    cJSON_AddItemToArray(m_node, value.m_node);
+    value.m_owner = false;
 } // addObject
 
 
@@ -115,7 +135,7 @@ void JsonArray::addObject(JsonObject value) {
  * @param [in] value The string value to add to the array.
  */
 void JsonArray::addString(std::string value) {
-	cJSON_AddItemToArray(m_node, cJSON_CreateString(value.c_str()));
+    cJSON_AddItemToArray(m_node, cJSON_CreateString(value.c_str()));
 } // addString
 
 
@@ -124,9 +144,12 @@ void JsonArray::addString(std::string value) {
  * @param [in] item The index of the array to retrieve.
  * @return The boolean value at the given index.
  */
-bool JsonArray::getBoolean(int item) {
-	cJSON* node = cJSON_GetArrayItem(m_node, item);
-	return (node->valueint != 0);
+bool JsonArray::getBoolean(int item) const {
+    cJSON *node = cJSON_GetArrayItem(m_node, item);
+    if (node->valueint == 0) {
+        return false;
+    }
+    return true;
 } // getBoolean
 
 
@@ -135,9 +158,9 @@ bool JsonArray::getBoolean(int item) {
  * @param [in] item The index of the array to retrieve.
  * @return The double value at the given index.
  */
-double JsonArray::getDouble(int item) {
-	cJSON* node = cJSON_GetArrayItem(m_node, item);
-	return node->valuedouble;
+double JsonArray::getDouble(int item) const {
+    cJSON *node = cJSON_GetArrayItem(m_node, item);
+    return node->valuedouble;
 } // getDouble
 
 
@@ -146,9 +169,9 @@ double JsonArray::getDouble(int item) {
  * @param [in] item The index of the array to retrieve.
  * @return The int value at the given index.
  */
-int JsonArray::getInt(int item) {
-	cJSON* node = cJSON_GetArrayItem(m_node, item);
-	return node->valueint;
+int JsonArray::getInt(int item) const {
+    cJSON *node = cJSON_GetArrayItem(m_node, item);
+    return node->valueint;
 } // getInt
 
 
@@ -157,9 +180,9 @@ int JsonArray::getInt(int item) {
  * @param [in] item The index of the array to retrieve.
  * @return The object value at the given index.
  */
-JsonObject JsonArray::getObject(int item) {
-	cJSON* node = cJSON_GetArrayItem(m_node, item);
-	return JsonObject(node);
+JsonObject JsonArray::getObject(int item) const {
+    cJSON *node = cJSON_GetArrayItem(m_node, item);
+    return JsonObject(node, false);
 } // getObject
 
 
@@ -168,9 +191,9 @@ JsonObject JsonArray::getObject(int item) {
  * @param [in] item The index of the array to retrieve.
  * @return The object value at the given index.
  */
-std::string JsonArray::getString(int item) {
-	cJSON* node = cJSON_GetArrayItem(m_node, item);
-	return std::string(node->valuestring);
+std::string JsonArray::getString(int item) const {
+    cJSON *node = cJSON_GetArrayItem(m_node, item);
+    return std::string(node->valuestring);
 } // getString
 
 
@@ -178,11 +201,11 @@ std::string JsonArray::getString(int item) {
  * @brief Convert the JSON array to a string.
  * @return A JSON string representation of the array.
  */
-std::string JsonArray::toString() {
-	char* data = cJSON_Print(m_node);
-	std::string ret(data);
-	free(data);
-	return ret;
+std::string JsonArray::toString() const {
+    char *data = cJSON_Print(m_node);
+    std::string ret(data);
+    free(data);
+    return ret;
 } // toString
 
 
@@ -190,32 +213,47 @@ std::string JsonArray::toString() {
  * @brief Build an unformatted string representation.
  * @return A string representation.
  */
-std::string JsonArray::toStringUnformatted() {
-	char* data = cJSON_PrintUnformatted(m_node);
-	std::string ret(data);
-	free(data);
-	return ret;
+std::string JsonArray::toStringUnformatted() const {
+    char *data = cJSON_PrintUnformatted(m_node);
+    std::string ret(data);
+    free(data);
+    return ret;
 } // toStringUnformatted
+
+int JsonObject::getChildList(std::vector<std::string> &children) const {
+    const cJSON* child = NULL;
+    children.clear();
+    cJSON_ArrayForEach(child, m_node) {
+        children.push_back(std::string(child->string));
+    }
+    return children.size();
+}
 
 
 /**
  * @brief Get the number of elements from the array.
  * @return The int value that represents the number of elements.
  */
-std::size_t JsonArray::size() {
-	return cJSON_GetArraySize(m_node);
+std::size_t JsonArray::size() const {
+    return cJSON_GetArraySize(m_node);
 } // size
 
 /**
  * @brief Constructor
  */
-JsonObject::JsonObject(cJSON* node) {
-	m_node = node;
-} // JsonObject
+JsonObject::JsonObject(cJSON* node, bool owner)
+    : m_node(node)
+    , m_owner(owner) {} // JsonObject
 
-JsonArray JsonObject::getArray(std::string name) {
-	cJSON* node = cJSON_GetObjectItem(m_node, name.c_str());
-	return JsonArray(node);
+JsonArray JsonObject::getArray(std::string name) const {
+    cJSON *node = cJSON_GetObjectItem(m_node, name.c_str());
+    return JsonArray(node, false);
+}
+
+JsonObject::JsonObject(const std::string& text) 
+    : m_node(nullptr)
+    , m_owner(true) {
+        m_node = cJSON_Parse(text.c_str());
 }
 
 
@@ -224,10 +262,12 @@ JsonArray JsonObject::getArray(std::string name) {
  * @param [in] name The name of the object property.
  * @return The boolean value from the object.
  */
-bool JsonObject::getBoolean(std::string name) {
-	cJSON* node = cJSON_GetObjectItem(m_node, name.c_str());
-	if (node == nullptr) return false;
-	return cJSON_IsTrue(node);
+bool JsonObject::getBoolean(std::string name) const {
+    cJSON *node = cJSON_GetObjectItem(m_node, name.c_str());
+    if (node == nullptr) {
+        return false;
+    }
+    return cJSON_IsTrue(node);
 } // getBoolean
 
 
@@ -236,10 +276,12 @@ bool JsonObject::getBoolean(std::string name) {
  * @param [in] name The name of the object property.
  * @return The double value from the object.
  */
-double JsonObject::getDouble(std::string name) {
-	cJSON* node = cJSON_GetObjectItem(m_node, name.c_str());
-	if (node == nullptr) return 0.0;
-	return node->valuedouble;
+double JsonObject::getDouble(std::string name) const {
+    cJSON *node = cJSON_GetObjectItem(m_node, name.c_str());
+    if (node == nullptr) {
+        return 0.0;
+    }
+    return node->valuedouble;
 } // getDouble
 
 
@@ -248,10 +290,12 @@ double JsonObject::getDouble(std::string name) {
  * @param [in] name The name of the object property.
  * @return The int value from the object.
  */
-int JsonObject::getInt(std::string name) {
-	cJSON* node = cJSON_GetObjectItem(m_node, name.c_str());
-	if (node == nullptr) return 0;
-	return node->valueint;
+int JsonObject::getInt(std::string name) const {
+    cJSON *node = cJSON_GetObjectItem(m_node, name.c_str());
+    if (node == nullptr) {
+        return 0;
+    }
+    return node->valueint;
 } // getInt
 
 
@@ -260,9 +304,9 @@ int JsonObject::getInt(std::string name) {
  * @param [in] name The name of the object property.
  * @return The object value from the object.
  */
-JsonObject JsonObject::getObject(std::string name) {
-	cJSON* node = cJSON_GetObjectItem(m_node, name.c_str());
-	return JsonObject(node);
+JsonObject JsonObject::getObject(std::string name) const {
+    cJSON *node = cJSON_GetObjectItem(m_node, name.c_str());
+    return JsonObject(node, false);
 } // getObject
 
 
@@ -271,10 +315,12 @@ JsonObject JsonObject::getObject(std::string name) {
  * @param [in] name The name of the object property.
  * @return The string value from the object.  A zero length string is returned when the object is not present.
  */
-std::string JsonObject::getString(std::string name) {
-	cJSON* node = cJSON_GetObjectItem(m_node, name.c_str());
-	if (node == nullptr) return "";
-	return std::string(node->valuestring);
+std::string JsonObject::getString(std::string name) const {
+    cJSON *node = cJSON_GetObjectItem(m_node, name.c_str());
+    if (node == nullptr) {
+        return "";
+    }
+    return std::string(node->valuestring);
 } // getString
 
 
@@ -283,8 +329,8 @@ std::string JsonObject::getString(std::string name) {
  * @param [in] name The name of the property to check for presence.
  * @return True if the object contains this property.
  */
-bool JsonObject::hasItem(std::string name) {
-	return cJSON_GetObjectItem(m_node, name.c_str()) != nullptr;
+bool JsonObject::hasItem(std::string name) const {
+    return cJSON_GetObjectItem(m_node, name.c_str()) != nullptr;
 } // hasItem
 
 
@@ -292,8 +338,8 @@ bool JsonObject::hasItem(std::string name) {
  * @brief Determine if this represents a valid JSON node.
  * @return True if this is a valid node and false otherwise.
  */
-bool JsonObject::isValid() {
-	return m_node != nullptr;
+bool JsonObject::isValid() const {
+    return m_node != nullptr;
 } // isValid
 
 /**
@@ -302,8 +348,10 @@ bool JsonObject::isValid() {
  * @param [in] array The array to add to the object.
  * @return N/A.
  */
-void JsonObject::setArray(std::string name, JsonArray array) {
-	cJSON_AddItemToObject(m_node, name.c_str(), array.m_node);
+void JsonObject::setArray(std::string name, JsonArray& array) {
+    cJSON_AddItemToObject(m_node, name.c_str(), array.m_node);
+    array.m_owner = false;
+    
 } // setArray
 
 
@@ -314,7 +362,7 @@ void JsonObject::setArray(std::string name, JsonArray array) {
  * @return N/A.
  */
 void JsonObject::setBoolean(std::string name, bool value) {
-	cJSON_AddItemToObject(m_node, name.c_str(), value ? cJSON_CreateTrue() : cJSON_CreateFalse());
+    cJSON_AddItemToObject(m_node, name.c_str(), value ? cJSON_CreateTrue() : cJSON_CreateFalse());
 } // setBoolean
 
 
@@ -325,7 +373,7 @@ void JsonObject::setBoolean(std::string name, bool value) {
  * @return N/A.
  */
 void JsonObject::setDouble(std::string name, double value) {
-	cJSON_AddItemToObject(m_node, name.c_str(), cJSON_CreateNumber(value));
+    cJSON_AddItemToObject(m_node, name.c_str(), cJSON_CreateNumber(value));
 } // setDouble
 
 
@@ -336,7 +384,7 @@ void JsonObject::setDouble(std::string name, double value) {
  * @return N/A.
  */
 void JsonObject::setInt(std::string name, int value) {
-	cJSON_AddItemToObject(m_node, name.c_str(), cJSON_CreateNumber((double) value));
+    cJSON_AddItemToObject(m_node, name.c_str(), cJSON_CreateNumber((double)value));
 } // setInt
 
 
@@ -346,8 +394,9 @@ void JsonObject::setInt(std::string name, int value) {
  * @param [in] value The object to add to the object.
  * @return N/A.
  */
-void JsonObject::setObject(std::string name, JsonObject value) {
-	cJSON_AddItemToObject(m_node, name.c_str(), value.m_node);
+void JsonObject::setObject(std::string name, JsonObject& value) {
+    cJSON_AddItemToObject(m_node, name.c_str(), value.m_node);
+    value.m_owner = false;
 } // setObject
 
 
@@ -358,7 +407,7 @@ void JsonObject::setObject(std::string name, JsonObject value) {
  * @return N/A.
  */
 void JsonObject::setString(std::string name, std::string value) {
-	cJSON_AddItemToObject(m_node, name.c_str(), cJSON_CreateString(value.c_str()));
+    cJSON_AddItemToObject(m_node, name.c_str(), cJSON_CreateString(value.c_str()));
 } // setString
 
 
@@ -366,11 +415,11 @@ void JsonObject::setString(std::string name, std::string value) {
  * @brief Convert the JSON object to a string.
  * @return A JSON string representation of the object.
  */
-std::string JsonObject::toString() {
-	char* data = cJSON_Print(m_node);
-	std::string ret(data);
-	free(data);
-	return ret;
+std::string JsonObject::toString() const {
+    char *data = cJSON_Print(m_node);
+    std::string ret(data);
+    free(data);
+    return ret;
 } // toString
 
 
@@ -378,9 +427,17 @@ std::string JsonObject::toString() {
  * @brief Build an unformatted string representation.
  * @return A string representation.
  */
-std::string JsonObject::toStringUnformatted() {
-	char* data = cJSON_PrintUnformatted(m_node);
-	std::string ret(data);
-	free(data);
-	return ret;
+std::string JsonObject::toStringUnformatted() const {
+    char *data = cJSON_PrintUnformatted(m_node);
+    std::string ret(data);
+    free(data);
+    return ret;
 } // toStringUnformatted
+/*
+xstring JsonObject::toXStringUnformatted() const {
+    char *data = cJSON_PrintUnformatted(m_node);
+    xstring ret(data);
+    free(data);
+    return ret;
+} // toStringUnformatted
+*/

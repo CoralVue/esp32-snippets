@@ -24,6 +24,16 @@ public:
 	uint8_t     getType();
 	bool        isDirectory();
 	uint32_t    length();
+    bool operator >(const File& other) const {
+        if (m_type != other.m_type)
+            return m_type > other.m_type;
+        return (m_path > other.m_path);
+    }
+    bool operator <(const File& other) const {
+        if (m_type != other.m_type)
+            return m_type < other.m_type;
+        return (m_path < other.m_path);
+    }
 
 private:
 	std::string m_path;

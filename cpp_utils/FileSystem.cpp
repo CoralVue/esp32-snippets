@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <ff.h>
 
 #include <dirent.h>
 #include <errno.h>
@@ -154,3 +155,19 @@ int FileSystem::remove(std::string path) {
 	}
 	return rc;
 } // remove
+
+uint64_t FileSystem::getFreeSpace() {
+
+    FATFS *fs;
+    DWORD fre_clust, fre_sect, tot_sect;
+
+    /* Get volume information and free clusters of drive 0 */
+    FRESULT res = f_getfree("0:", &fre_clust, &fs);
+    /* Get total sectors and free sectors */
+    tot_sect = (fs->n_fatent - 2) * fs->csize;
+    fre_sect = fre_clust * fs->csize;
+    /* Print the free space (assuming 512 bytes/sector) */
+    printf("%10lu kB total drive space.\n%10lu kB available.\n",
+           tot_sect / 2, fre_sect / 2);
+    return fre_sect * 512;
+}

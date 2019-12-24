@@ -54,7 +54,8 @@ void SPI::init(int mosiPin, int misoPin, int clkPin, int csPin) {
 	bus_config.quadwp_io_num   = -1;      // Not used
 	bus_config.quadhd_io_num   = -1;      // Not used
 	bus_config.max_transfer_sz = 0;       // 0 means use default.
-    bus_config.flags           = (SPICOMMON_BUSFLAG_SCLK | SPICOMMON_BUSFLAG_MOSI | SPICOMMON_BUSFLAG_MISO);
+    bus_config.flags           = 0;//(SPICOMMON_BUSFLAG_SCLK | SPICOMMON_BUSFLAG_MOSI);
+    bus_config.intr_flags = 0;
 
 	ESP_LOGI(LOG_TAG, "... Initializing bus; host=%d", m_host);
 
@@ -77,10 +78,10 @@ void SPI::init(int mosiPin, int misoPin, int clkPin, int csPin) {
 	dev_config.duty_cycle_pos   = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans  = 0;
-	dev_config.clock_speed_hz   = 100000;
+	dev_config.clock_speed_hz   = 100000; 
 	dev_config.spics_io_num     = csPin;
 	dev_config.flags            = SPI_DEVICE_NO_DUMMY;
-	dev_config.queue_size       = 1;
+	dev_config.queue_size       = 7;
 	dev_config.pre_cb           = NULL;
 	dev_config.post_cb          = NULL;
 	ESP_LOGI(LOG_TAG, "... Adding device bus.");
@@ -101,7 +102,6 @@ void SPI::setHost(spi_host_device_t host) {
 	m_host = host;
 } // setHost
 
-
 /**
  * @brief Send and receive data through %SPI.  This is a blocking call.
  *
@@ -112,7 +112,7 @@ void SPI::transfer(uint8_t* data, size_t dataLen) {
 	assert(data != nullptr);
 	assert(dataLen > 0);
 #ifdef DEBUG
-	for (auto i = 0; i < dataLen; i++) {
+	for (auto i=0; i<dataLen; i++) {
 		ESP_LOGD(LOG_TAG, "> %2d %.2x", i, data[i]);
 	}
 #endif
@@ -123,7 +123,7 @@ void SPI::transfer(uint8_t* data, size_t dataLen) {
 	trans_desc.length    = dataLen * 8;
 	trans_desc.rxlength  = 0;
 	trans_desc.tx_buffer = data;
-	trans_desc.rx_buffer = data;
+	trans_desc.rx_buffer = 0;
 
 	//ESP_LOGI(tag, "... Transferring");
 	esp_err_t rc = ::spi_device_transmit(m_handle, &trans_desc);
@@ -142,3 +142,5 @@ uint8_t SPI::transferByte(uint8_t value) {
 	transfer(&value, 1);
 	return value;
 } // transferByte
+
+

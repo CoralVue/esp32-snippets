@@ -83,7 +83,7 @@ public:
 	void        setDirectoryListing(bool use);             // Should we list the content of directories?
 	void        setFileBufferSize(size_t fileBufferSize);  // Set the size of the file buffer
 	void        setRootPath(std::string path);             // Set the root of the file system path.
-	void        start(uint16_t portNumber, bool useSSL = false);
+	void        start(uint16_t portNumber, bool useSSL=false);
 	void        stop();          // Stop a previously started server.
 
 private:
@@ -99,6 +99,7 @@ private:
 	bool                     m_useSSL;             // Is this server listening on an HTTPS port?
 	uint32_t                 m_clientTimeout;      // Default Timeout
 	FreeRTOS::Semaphore      m_semaphoreServerStarted = FreeRTOS::Semaphore("ServerStarted");
+    HttpServerTask*          m_serverTask;
 }; // HttpServer
 
 #endif /* COMPONENTS_CPP_UTILS_HTTPSERVER_H_ */

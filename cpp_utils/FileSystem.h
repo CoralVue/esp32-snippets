@@ -21,6 +21,7 @@ public:
 	static int                      mkdir(std::string path);
 	static std::vector<std::string> pathSplit(std::string path);
 	static int                      remove(std::string path);
+    static uint64_t                 getFreeSpace();
 };
 
 #endif /* COMPONENTS_CPP_UTILS_FILESYSTEM_H_ */

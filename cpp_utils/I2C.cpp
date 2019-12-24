@@ -6,6 +6,7 @@
  */
 #include <driver/gpio.h>
 #include <driver/i2c.h>
+#include <driver/periph_ctrl.h>
 #include <esp_err.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -16,7 +17,7 @@
 
 static const char* LOG_TAG = "I2C";
 
-static bool driverInstalled = false;
+//static bool driverInstalled = false;
 static bool debug = false;
 /**
  * @brief Create an instance of an %I2C object.
@@ -29,6 +30,7 @@ I2C::I2C() {
 	m_sdaPin  = DEFAULT_SDA_PIN;
 	m_sclPin  = DEFAULT_CLK_PIN;
 	m_portNum = I2C_NUM_0;
+	driverInstalled = false;
 } // I2C
 
 
@@ -67,7 +69,7 @@ void I2C::endTransaction() {
 		ESP_LOGE(LOG_TAG, "i2c_master_stop: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
 	}
 
-	errRc = ::i2c_master_cmd_begin(m_portNum, m_cmd, 1000 / portTICK_PERIOD_MS);
+	errRc = ::i2c_master_cmd_begin(m_portNum, m_cmd, 1000/portTICK_PERIOD_MS);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(LOG_TAG, "i2c_master_cmd_begin: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
 	}
@@ -81,7 +83,8 @@ void I2C::endTransaction() {
  *
  * @return The address of the %I2C slave.
  */
-uint8_t I2C::getAddress() const {
+uint8_t I2C::getAddress() const
+{
 	return m_address;
 }
 
@@ -94,21 +97,34 @@ uint8_t I2C::getAddress() const {
  * @param [in] sclPin The pin to use for SCL clock.
  * @return N/A.
  */
-void I2C::init(uint8_t address, gpio_num_t sdaPin, gpio_num_t sclPin, uint32_t clockSpeed, i2c_port_t portNum, bool pullup) {
+void I2C::init(uint8_t address, gpio_num_t sdaPin, gpio_num_t sclPin, uint32_t clockSpeed, i2c_port_t portNum) {
 	ESP_LOGD(LOG_TAG, ">> I2c::init.  address=%d, sda=%d, scl=%d, clockSpeed=%d, portNum=%d", address, sdaPin, sclPin, clockSpeed, portNum);
 	assert(portNum < I2C_NUM_MAX);
 	m_portNum = portNum;
 	m_sdaPin  = sdaPin;
 	m_sclPin  = sclPin;
 	m_address = address;
-
+    // disable and reenable the i2c hardware. This is needed after a soft reboot.
+    if (portNum == I2C_NUM_0) {
+        periph_module_disable(PERIPH_I2C0_MODULE);
+        periph_module_enable(PERIPH_I2C0_MODULE);
+    }
+    else if (portNum == I2C_NUM_1) {
+        periph_module_disable(PERIPH_I2C1_MODULE);
+        periph_module_enable(PERIPH_I2C1_MODULE);
+    }
+    else {
+        assert(false);
+    }
+	
 	i2c_config_t conf;
 	conf.mode             = I2C_MODE_MASTER;
 	conf.sda_io_num       = sdaPin;
 	conf.scl_io_num       = sclPin;
-	conf.sda_pullup_en    = pullup ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
-	conf.scl_pullup_en    = pullup ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
-	conf.master.clk_speed =  clockSpeed;
+	// Changed from ENABLE to DISABLE by Don E because we have hardware pullup.
+	conf.sda_pullup_en    = GPIO_PULLUP_DISABLE;
+	conf.scl_pullup_en    = GPIO_PULLUP_DISABLE;
+	conf.master.clk_speed =  100000;
 	esp_err_t errRc = ::i2c_param_config(m_portNum, &conf);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(LOG_TAG, "i2c_param_config: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
@@ -135,14 +151,14 @@ void I2C::read(uint8_t* bytes, size_t length, bool ack) {
 	if (debug) {
 		ESP_LOGD(LOG_TAG, "read(size=%d, ack=%d)", length, ack);
 	}
-	if (!m_directionKnown) {
+	if (m_directionKnown == false) {
 		m_directionKnown = true;
 		esp_err_t errRc = ::i2c_master_write_byte(m_cmd, (m_address << 1) | I2C_MASTER_READ, !ack);
 		if (errRc != ESP_OK) {
 			ESP_LOGE(LOG_TAG, "i2c_master_write_byte: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
 		}
 	}
-	esp_err_t errRc = ::i2c_master_read(m_cmd, bytes, length, ack?I2C_MASTER_ACK:I2C_MASTER_NACK);
+	esp_err_t errRc = ::i2c_master_read(m_cmd, bytes, length, I2C_MASTER_LAST_NACK);
 	if (errRc != ESP_OK) {
 		ESP_LOGE(LOG_TAG, "i2c_master_read: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
 	}
@@ -156,11 +172,11 @@ void I2C::read(uint8_t* bytes, size_t length, bool ack) {
  * @param [in] ack Whether or not we should send an ACK to the slave after reading a byte.
  * @return N/A.
  */
-void I2C::read(uint8_t* byte, bool ack) {
+void I2C::read(uint8_t *byte, bool ack) {
 	if (debug) {
 		ESP_LOGD(LOG_TAG, "read(size=1, ack=%d)", ack);
 	}
-	if (!m_directionKnown) {
+	if (m_directionKnown == false) {
 		m_directionKnown = true;
 		esp_err_t errRc = ::i2c_master_write_byte(m_cmd, (m_address << 1) | I2C_MASTER_READ, !ack);
 		if (errRc != ESP_OK) {
@@ -179,11 +195,12 @@ void I2C::read(uint8_t* byte, bool ack) {
  * @return N/A.
  */
 void I2C::scan() {
+	uint8_t i;
 	printf("Data Pin: %d, Clock Pin: %d\n", this->m_sdaPin, this->m_sclPin);
 	printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	printf("00:         ");
-	for (uint8_t i = 3; i < 0x78; i++) {
-		if (i % 16 == 0) {
+	for (i=3; i<0x78; i++) {
+		if (i%16 == 0) {
 			printf("\n%.2x:", i);
 		}
 		if (slavePresent(i)) {
@@ -201,7 +218,8 @@ void I2C::scan() {
  *
  * @param [in] address The address of the %I2C slave.
  */
-void I2C::setAddress(uint8_t address) {
+void I2C::setAddress(uint8_t address)
+{
 	this->m_address = address;
 } // setAddress
 
@@ -227,7 +245,7 @@ bool I2C::slavePresent(uint8_t address) {
 	::i2c_master_write_byte(cmd, (address << 1) | I2C_MASTER_WRITE, 1 /* expect ack */);
 	::i2c_master_stop(cmd);
 
-	esp_err_t espRc = ::i2c_master_cmd_begin(m_portNum, cmd, 100 / portTICK_PERIOD_MS);
+	esp_err_t espRc = ::i2c_master_cmd_begin(m_portNum, cmd, 1000/portTICK_PERIOD_MS);
 	i2c_cmd_link_delete(cmd);
 	return espRc == 0;  // Return true if the slave is present and false otherwise.
 } // slavePresent
@@ -276,7 +294,7 @@ void I2C::write(uint8_t byte, bool ack) {
 	if (debug) {
 		ESP_LOGD(LOG_TAG, "write(val=0x%.2x, ack=%d)", byte, ack);
 	}
-	if (!m_directionKnown) {
+	if (m_directionKnown == false) {
 		m_directionKnown = true;
 		esp_err_t errRc = ::i2c_master_write_byte(m_cmd, (m_address << 1) | I2C_MASTER_WRITE, !ack);
 		if (errRc != ESP_OK) {
@@ -302,7 +320,7 @@ void I2C::write(uint8_t *bytes, size_t length, bool ack) {
 	if (debug) {
 		ESP_LOGD(LOG_TAG, "write(length=%d, ack=%d)", length, ack);
 	}
-	if (!m_directionKnown) {
+	if (m_directionKnown == false) {
 		m_directionKnown = true;
 		esp_err_t errRc = ::i2c_master_write_byte(m_cmd, (m_address << 1) | I2C_MASTER_WRITE, !ack);
 		if (errRc != ESP_OK) {
@@ -314,3 +332,5 @@ void I2C::write(uint8_t *bytes, size_t length, bool ack) {
 		ESP_LOGE(LOG_TAG, "i2c_master_write: rc=%d %s", errRc, GeneralUtils::errorToString(errRc));
 	}
 } // write
+
+

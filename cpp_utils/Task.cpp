@@ -6,15 +6,16 @@
  */
 
 
-#include <esp_log.h>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <string>
+#include <esp_log.h>
 
 #include "Task.h"
 #include "sdkconfig.h"
 
-static const char* LOG_TAG = "Task";
+static char tag[] = "Task";
 
 
 /**
@@ -43,8 +44,8 @@ Task::~Task() {
  * @return N/A.
  */
 
-/* static */ void Task::delay(int ms) {
-	::vTaskDelay(ms / portTICK_PERIOD_MS);
+void Task::delay(int ms) {
+	::vTaskDelay(ms/portTICK_PERIOD_MS);
 } // delay
 
 /**
@@ -54,10 +55,10 @@ Task::~Task() {
  * @param [in] pTaskInstance The task to run.
  */
 void Task::runTask(void* pTaskInstance) {
-	Task* pTask = (Task*) pTaskInstance;
-	ESP_LOGD(LOG_TAG, ">> runTask: taskName=%s", pTask->m_taskName.c_str());
+	Task* pTask = (Task*)pTaskInstance;
+	ESP_LOGD(tag, ">> runTask: taskName=%s", pTask->m_taskName.c_str());
 	pTask->run(pTask->m_taskData);
-	ESP_LOGD(LOG_TAG, "<< runTask: taskName=%s", pTask->m_taskName.c_str());
+	ESP_LOGD(tag, "<< runTask: taskName=%s", pTask->m_taskName.c_str());
 	pTask->stop();
 } // runTask
 
@@ -69,10 +70,13 @@ void Task::runTask(void* pTaskInstance) {
  */
 void Task::start(void* taskData) {
 	if (m_handle != nullptr) {
-		ESP_LOGW(LOG_TAG, "Task::start - There might be a task already running!");
+		ESP_LOGW(tag, "Task::start - There might be a task already running!");
 	}
 	m_taskData = taskData;
-	::xTaskCreatePinnedToCore(&runTask, m_taskName.c_str(), m_stackSize, this, m_priority, &m_handle, m_coreId);
+    BaseType_t result = ::xTaskCreatePinnedToCore(&runTask, m_taskName.c_str(), m_stackSize, this, m_priority, &m_handle, m_coreId);
+    if (result != pdPASS) {
+        ESP_LOGE(tag, "Task::start failed. result = %d", result);
+    }
 } // start
 
 
@@ -82,10 +86,12 @@ void Task::start(void* taskData) {
  * @return N/A.
  */
 void Task::stop() {
-	if (m_handle == nullptr) return;
+	if (m_handle == nullptr) {
+		return;
+	}
 	xTaskHandle temp = m_handle;
 	m_handle = nullptr;
-	::vTaskDelete(temp);
+	::vTaskDelete(temp); 
 } // stop
 
 /**
@@ -127,4 +133,14 @@ void Task::setName(std::string name) {
  */
 void Task::setCore(BaseType_t coreId) {
 	m_coreId = coreId;
+}
+
+void Task::checkStack(const char *tag, int loopCnt) {
+    if ((StackCheckLoopCount++ % loopCnt) == 0) {
+        UBaseType_t wm= uxTaskGetStackHighWaterMark(NULL);
+        if (wm < 300)
+            ESP_LOGE(tag, "watermark = %d", wm);
+        if (wm > 1000)
+            ESP_LOGI(tag, "watermark = %d", wm);
+    }
 }
